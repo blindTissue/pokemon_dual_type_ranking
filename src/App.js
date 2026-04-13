@@ -29,6 +29,8 @@ const TYPE_CHART = {
 const EFFECTIVENESS_ORDER = [0, 0.25, 0.5, 1, 2, 4];
 const DEFAULT_ATTACK_SCORES = { 0: -3, 0.25: -2, 0.5: -1, 1: 0, 2: 1, 4: 2 };
 const DEFAULT_DEFENSE_SCORES = { 0: 3, 0.25: 2, 0.5: 1, 1: 0, 2: -1, 4: -2 };
+const DEFAULT_DUAL_ATTACK_WEIGHTS = { coverage: 0.3, overlap: 0.2 };
+const RATING_BASELINE = 100;
 const ITERATION_COUNT = 100;
 
 const DEFENDER_TYPINGS = [
@@ -105,10 +107,12 @@ function calculateSingleAttackRawTotals(defenseRatings, attackScores, attackOffs
   return rawTotals;
 }
 
-function calculateDualAttackRankings(attackRatings, defenseRatings, attackScores, attackOffset) {
+function calculateDualAttackRankings(attackRatings, defenseRatings, attackScores, attackOffset, dualAttackWeights) {
   const singleAttackRawTotals = calculateSingleAttackRawTotals(defenseRatings, attackScores, attackOffset);
 
-  const dualModel1 = DUAL_ATTACKERS.map((attacker) => {
+  const singleAttackEntries = ATTACKING_TYPES.map((type) => [type, attackRatings[type]]);
+
+  const dualAttackEntries = DUAL_ATTACKERS.map((attacker) => {
     const [leftType, rightType] = attacker.types;
     const baseRating = Math.max(attackRatings[leftType], attackRatings[rightType]);
     const betterSingleRaw = Math.max(singleAttackRawTotals[leftType], singleAttackRawTotals[rightType]);
@@ -136,25 +140,63 @@ function calculateDualAttackRankings(attackRatings, defenseRatings, attackScores
 
     return {
       label: attacker.label,
-      model1Rating: baseRating * (1 + 0.2 * coverageRatio + 0.4 * overlapRatio),
-      model2Rating: baseRating * (1 + 0.5 * overlapRatio)
+      multiplicativeRating: baseRating * (
+        1
+        + dualAttackWeights.coverage * coverageRatio
+        + dualAttackWeights.overlap * overlapRatio
+      ),
+      additiveRating: baseRating
+        + dualAttackWeights.coverage * RATING_BASELINE * coverageRatio
+        + dualAttackWeights.overlap * RATING_BASELINE * overlapRatio
     };
   });
 
   return {
-    model1: dualModel1
-      .map(({ label, model1Rating }) => [label, model1Rating])
-      .sort(([, left], [, right]) => right - left),
-    model2: dualModel1
-      .map(({ label, model2Rating }) => [label, model2Rating])
-      .sort(([, left], [, right]) => right - left)
+    multiplicative: [
+      ...singleAttackEntries,
+      ...dualAttackEntries.map(({ label, multiplicativeRating }) => [label, multiplicativeRating])
+    ].sort(([, left], [, right]) => right - left),
+    additive: [
+      ...singleAttackEntries,
+      ...dualAttackEntries.map(({ label, additiveRating }) => [label, additiveRating])
+    ].sort(([, left], [, right]) => right - left)
   };
+}
+
+function escapeCsvValue(value) {
+  const stringValue = String(value);
+  if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+    return `"${stringValue.replace(/"/g, '""')}"`;
+  }
+  return stringValue;
+}
+
+function downloadCsv(filename, headers, rows) {
+  const csvLines = [
+    headers.map(escapeCsvValue).join(','),
+    ...rows.map((row) => row.map(escapeCsvValue).join(','))
+  ];
+  const blob = new Blob([csvLines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
 function App() {
   const [attackScores, setAttackScores] = useState(DEFAULT_ATTACK_SCORES);
   const [defenseScores, setDefenseScores] = useState(DEFAULT_DEFENSE_SCORES);
-  const [rankings, setRankings] = useState({ attack: [], defense: [], dualModel1: [], dualModel2: [] });
+  const [dualAttackWeights, setDualAttackWeights] = useState(DEFAULT_DUAL_ATTACK_WEIGHTS);
+  const [rankings, setRankings] = useState({
+    attack: [],
+    defense: [],
+    attackTypingsMultiplicative: [],
+    attackTypingsAdditive: []
+  });
 
   useEffect(() => {
     let attackRatings = buildInitialRatings(
@@ -211,7 +253,8 @@ function App() {
       attackRatings,
       defenseRatings,
       attackScores,
-      attackOffset
+      attackOffset,
+      dualAttackWeights
     );
 
     setRankings({
@@ -219,10 +262,10 @@ function App() {
       defense: DEFENDER_TYPINGS
         .map((defender) => [defender.label, defenseRatings[defender.key]])
         .sort(([, left], [, right]) => right - left),
-      dualModel1: dualAttackRankings.model1,
-      dualModel2: dualAttackRankings.model2
+      attackTypingsMultiplicative: dualAttackRankings.multiplicative,
+      attackTypingsAdditive: dualAttackRankings.additive
     });
-  }, [attackScores, defenseScores]);
+  }, [attackScores, defenseScores, dualAttackWeights]);
 
   const handleAttackScoreChange = (effectiveness, value) => {
     setAttackScores((previousScores) => ({
@@ -238,51 +281,71 @@ function App() {
     }));
   };
 
+  const handleDualAttackWeightChange = (weightName, value) => {
+    setDualAttackWeights((previousWeights) => ({
+      ...previousWeights,
+      [weightName]: Number.parseFloat(value) || 0
+    }));
+  };
+
+  const handleDownloadAttackCsv = () => {
+    downloadCsv(
+      'attack-rankings.csv',
+      ['Rank', 'Type', 'Rating'],
+      rankings.attack.map(([type, rating], index) => [index + 1, type, rating.toFixed(6)])
+    );
+  };
+
+  const handleDownloadDefenseCsv = () => {
+    downloadCsv(
+      'defense-rankings.csv',
+      ['Rank', 'Typing', 'Rating'],
+      rankings.defense.map(([typeLabel, rating], index) => [index + 1, typeLabel, rating.toFixed(6)])
+    );
+  };
+
+  const handleDownloadAttackTypingsCsv = () => {
+    downloadCsv(
+      'attack-typings-rankings.csv',
+      ['Rank', 'Typing', 'Rating'],
+      rankings.attackTypingsAdditive.map(([typeLabel, rating], index) => [index + 1, typeLabel, rating.toFixed(6)])
+    );
+  };
+
   return (
     <div className="app-shell">
       <div className="container py-5">
         <header className="hero card shadow-sm mb-4">
           <div className="card-body">
-            <p className="eyebrow mb-2">Dual-Type Extension</p>
             <h1 className="mb-3">Pokemon Dual-Type Ranking</h1>
-            <p className="lead mb-3">
-              Attack rankings are computed for the 18 single move types. Defense rankings are
-              computed for all 171 single and dual defender typings.
-            </p>
             <p className="mb-0 text-secondary">
-              Each side starts at 100, uses a linear weighted average against the other side&apos;s
-              current ratings, and is renormalized so its own average returns to 100 after every
-              iteration.
+              Each score is initalized at 100. Then in each iteration, a linear weighted average against the other side&apos;s
+              current ratings based on effectiveness is calculated, and is renormalized so its own average returns to 100 after every
+              iteration. This simple methods satisfies some intuitive bounds. See <a href="https://sungwon-kim.com/blog/2024/ranking-pokemon-types/" target="_blank" rel="noreferrer">this blog post</a> for context.
             </p>
             <p className="mb-0 mt-3 text-secondary">
-              Dual-type attack estimates are shown below as two heuristics: Model 1 uses
-              <code className="ms-1">base * (1 + 0.2 * coverage + 0.4 * overlap)</code>, while
-              Model 2 uses the stricter
-              <code className="ms-1">base * (1 + 0.5 * overlap)</code>.
+              Combined attack-typing estimates currently use the 100-baseline additive model:
+              <code className="ms-1">
+                max(type1, type2) + coverageWeight * 100 * coverage + overlapWeight * 100 * overlap
+              </code>
+              . Single typings keep their original attack ratings.
+            </p>
+            <p className="mb-0 mt-3 text-secondary">
+              Original single-type app:
+              <a
+                className="hero-link ms-1"
+                href="https://sungwon-kim.com/pokemon-type-ranking-app/"
+                target="_blank"
+                rel="noreferrer"
+              >
+                pokemon-type-ranking-app
+              </a>
             </p>
           </div>
         </header>
 
         <div className="row g-4">
           <div className="col-lg-4">
-            <div className="card shadow-sm mb-4">
-              <div className="card-body">
-                <h2 className="h4 mb-3">Model Setup</h2>
-                <p className="small text-secondary mb-2">
-                  Attackers: {ATTACKING_TYPES.length} single types
-                </p>
-                <p className="small text-secondary mb-2">
-                  Defenders: {DEFENDER_TYPINGS.length} single and dual typings
-                </p>
-                <p className="small text-secondary mb-2">
-                  Dual attacking pairs tested: {DUAL_ATTACKERS.length}
-                </p>
-                <p className="small text-secondary mb-0">
-                  Effectiveness buckets: {EFFECTIVENESS_ORDER.join(', ')}x
-                </p>
-              </div>
-            </div>
-
             <div className="card shadow-sm mb-4">
               <div className="card-body">
                 <h2 className="h4 mb-3">Attack Scores</h2>
@@ -304,7 +367,7 @@ function App() {
               </div>
             </div>
 
-            <div className="card shadow-sm">
+            <div className="card shadow-sm mb-4">
               <div className="card-body">
                 <h2 className="h4 mb-3">Defense Scores</h2>
                 <p className="small text-secondary">
@@ -324,6 +387,94 @@ function App() {
                 ))}
               </div>
             </div>
+
+            <div className="card shadow-sm">
+              <div className="card-body">
+                <h2 className="h4 mb-3">Dual Attack Weights</h2>
+                <p className="small text-secondary mb-3">
+                  For a dual attacking type, <strong>base</strong> is the larger of its two single-type
+                  attack ratings: <code>max(type1, type2)</code>.
+                </p>
+                <p className="small text-secondary mb-3">
+                  Dual attack score:
+                  <code className="ms-1">
+                    base + coverageWeight * 100 * coverage + overlapWeight * 100 * overlap.
+                  </code>
+                  modify the weights as you seem fit.
+                </p>
+                <div className="input-group mb-2">
+                  <span className="input-group-text score-label-wide">Coverage Weight</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="form-control"
+                    value={dualAttackWeights.coverage}
+                    onChange={(event) => handleDualAttackWeightChange('coverage', event.target.value)}
+                  />
+                </div>
+                <div className="input-group mb-0">
+                  <span className="input-group-text score-label-wide">Overlap Weight</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="form-control"
+                    value={dualAttackWeights.overlap}
+                    onChange={(event) => handleDualAttackWeightChange('overlap', event.target.value)}
+                  />
+                </div>
+                <details className="formula-details mt-3">
+                  <summary>How the combined attack-typing score is calculated</summary>
+                  <div className="formula-body small text-secondary mt-3">
+                    <p className="mb-2">
+                      For a dual attacking typing <code>(A, B)</code>, the baseline is
+                      <code className="ms-1">max(singleAttack(A), singleAttack(B))</code>.
+                    </p>
+                    <p className="mb-2">
+                      For each defender <code>D</code>, the app computes
+                      <code className="ms-1">scoreA(D)</code> and <code>scoreB(D)</code>
+                      using the current attack score table, then weights them by the current
+                      defender rating.
+                    </p>
+                    <p className="mb-2">
+                      <strong>Coverage raw total</strong>:
+                      <code className="ms-1">
+                        bestCoverageRaw = Σ_D max(scoreA(D), scoreB(D)) * defenseRating(D)
+                      </code>
+                    </p>
+                    <p className="mb-2">
+                      <strong>Better single raw total</strong>:
+                      <code className="ms-1">
+                        betterSingleRaw = max(rawSingle(A), rawSingle(B))
+                      </code>
+                    </p>
+                    <p className="mb-2">
+                      <strong>Coverage</strong>:
+                      <code className="ms-1">
+                        coverage = max(0, (bestCoverageRaw - betterSingleRaw) / betterSingleRaw)
+                      </code>
+                    </p>
+                    <p className="mb-2">
+                      <strong>Overlap raw total</strong>:
+                      <code className="ms-1">
+                        positiveOverlapRaw = Σ_D max(0, min(unshiftedScoreA(D), unshiftedScoreB(D))) * defenseRating(D)
+                      </code>
+                    </p>
+                    <p className="mb-2">
+                      <strong>Overlap</strong>:
+                      <code className="ms-1">
+                        overlap = max(0, positiveOverlapRaw / bestCoverageRaw)
+                      </code>
+                    </p>
+                    <p className="mb-0">
+                      Additive-bonus score:
+                      <code className="ms-1">
+                        max(type1, type2) + coverageWeight * 100 * coverage + overlapWeight * 100 * overlap
+                      </code>
+                    </p>
+                  </div>
+                </details>
+              </div>
+            </div>
           </div>
 
           <div className="col-lg-8">
@@ -331,7 +482,12 @@ function App() {
               <div className="col-xl-5">
                 <div className="card shadow-sm h-100">
                   <div className="card-body">
-                    <h2 className="h4 mb-3">Attack Rankings</h2>
+                    <div className="section-header mb-3">
+                      <h2 className="h4 mb-0">Attack Rankings</h2>
+                      <button type="button" className="download-button" onClick={handleDownloadAttackCsv}>
+                        Download CSV
+                      </button>
+                    </div>
                     <p className="small text-secondary">
                       Ranked as move types against the full defender pool.
                     </p>
@@ -362,7 +518,12 @@ function App() {
               <div className="col-xl-7">
                 <div className="card shadow-sm h-100">
                   <div className="card-body">
-                    <h2 className="h4 mb-3">Defense Rankings</h2>
+                    <div className="section-header mb-3">
+                      <h2 className="h4 mb-0">Defense Rankings</h2>
+                      <button type="button" className="download-button" onClick={handleDownloadDefenseCsv}>
+                        Download CSV
+                      </button>
+                    </div>
                     <p className="small text-secondary">
                       Ranked as defending typings using all 18 attacking move types.
                     </p>
@@ -392,47 +553,21 @@ function App() {
             </div>
 
             <div className="row g-4 mt-1">
-              <div className="col-xl-6">
+              <div className="col-12">
                 <div className="card shadow-sm h-100">
                   <div className="card-body">
-                    <h2 className="h4 mb-3">Dual Attack Rankings: Model 1</h2>
-                    <p className="small text-secondary">
-                      Anchored at the better single-type rating, then adds a small coverage bonus
-                      and a larger overlap bonus.
-                    </p>
-                    <div className="table-responsive ranking-table">
-                      <table className="table table-sm align-middle mb-0">
-                        <thead>
-                          <tr>
-                            <th>Rank</th>
-                            <th>Typing</th>
-                            <th className="text-end">Rating</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {rankings.dualModel1.map(([typeLabel, rating], index) => (
-                            <tr key={`dual-model-1-${typeLabel}`}>
-                              <td>{index + 1}</td>
-                              <td>{typeLabel}</td>
-                              <td className="text-end">{rating.toFixed(3)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                    <div className="section-header mb-3">
+                      <h2 className="h4 mb-0">Attack Typings Rankings</h2>
+                      <button type="button" className="download-button" onClick={handleDownloadAttackTypingsCsv}>
+                        Download CSV
+                      </button>
                     </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="col-xl-6">
-                <div className="card shadow-sm h-100">
-                  <div className="card-body">
-                    <h2 className="h4 mb-3">Dual Attack Rankings: Model 2</h2>
                     <p className="small text-secondary">
-                      Anchored at the better single-type rating and rewards only overlapping
-                      offensive pressure.
+                      Includes all 18 single attacking types and 153 dual attacking typings.
+                      Dual typings use the 100-baseline additive heuristic with
+                      <code className="ms-1">base = max(type1, type2)</code>.
                     </p>
-                    <div className="table-responsive ranking-table">
+                    <div className="table-responsive ranking-table defense-table">
                       <table className="table table-sm align-middle mb-0">
                         <thead>
                           <tr>
@@ -442,8 +577,8 @@ function App() {
                           </tr>
                         </thead>
                         <tbody>
-                          {rankings.dualModel2.map(([typeLabel, rating], index) => (
-                            <tr key={`dual-model-2-${typeLabel}`}>
+                          {rankings.attackTypingsAdditive.map(([typeLabel, rating], index) => (
+                            <tr key={`attack-typings-${typeLabel}`}>
                               <td>{index + 1}</td>
                               <td>{typeLabel}</td>
                               <td className="text-end">{rating.toFixed(3)}</td>

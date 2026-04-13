@@ -37,14 +37,50 @@ code {
   max-width: 46rem;
 }
 
+.hero-link {
+  color: #7a3f17;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.hero-link:hover {
+  text-decoration: underline;
+}
+
 .card {
   border: 1px solid rgba(101, 76, 54, 0.12);
   background: rgba(255, 252, 247, 0.88);
-  backdrop-filter: blur(4px);
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.download-button {
+  border: 1px solid #b88a59;
+  background: #fff7ea;
+  color: #6a4825;
+  border-radius: 999px;
+  padding: 8px 12px;
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.download-button:hover {
+  background: #f8ead2;
 }
 
 .score-label {
   min-width: 4.5rem;
+  justify-content: center;
+}
+
+.score-label-wide {
+  min-width: 8.75rem;
   justify-content: center;
 }
 
@@ -57,14 +93,26 @@ code {
 }
 
 .table thead th {
-  position: sticky;
-  top: 0;
   background: #f6efe1;
-  z-index: 1;
 }
 
 .table tbody tr:nth-child(1) td,
 .table tbody tr:nth-child(2) td,
 .table tbody tr:nth-child(3) td {
   font-weight: 600;
+}
+
+.formula-details {
+  border-top: 1px solid rgba(101, 76, 54, 0.12);
+  padding-top: 14px;
+}
+
+.formula-details summary {
+  cursor: pointer;
+  color: #6a4825;
+  font-weight: 600;
+}
+
+.formula-body p {
+  line-height: 1.45;
 }
