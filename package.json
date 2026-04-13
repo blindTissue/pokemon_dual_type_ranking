@@ -2,6 +2,7 @@
   "name": "pokemon-dual-type-ranking-app",
   "version": "0.1.0",
   "private": true,
+  "homepage": "https://blindtissue.github.io/pokemon_dual_type_ranking",
   "dependencies": {
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
