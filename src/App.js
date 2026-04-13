@@ -42,6 +42,14 @@ const DEFENDER_TYPINGS = [
   )
 ];
 
+const DUAL_ATTACKERS = ATTACKING_TYPES.flatMap((leftType, leftIndex) =>
+  ATTACKING_TYPES.slice(leftIndex + 1).map((rightType) => ({
+    key: `${leftType}/${rightType}`,
+    label: `${leftType} / ${rightType}`,
+    types: [leftType, rightType]
+  }))
+);
+
 function getEffectiveness(attacker, defenderTypes) {
   return defenderTypes.reduce(
     (multiplier, defenderType) => multiplier * (TYPE_CHART[attacker]?.[defenderType] ?? 1),
@@ -72,10 +80,81 @@ function getOffset(scoreMap) {
   return minimum < 0 ? -minimum : 0;
 }
 
+function getShiftedAttackScore(effectiveness, attackScores, attackOffset) {
+  return (attackScores[effectiveness] ?? attackScores[1]) + attackOffset;
+}
+
+function getUnshiftedAttackScore(effectiveness, attackScores) {
+  return attackScores[effectiveness] ?? attackScores[1];
+}
+
+function calculateSingleAttackRawTotals(defenseRatings, attackScores, attackOffset) {
+  const rawTotals = {};
+
+  for (const attacker of ATTACKING_TYPES) {
+    let weightedScore = 0;
+
+    for (const defender of DEFENDER_TYPINGS) {
+      const effectiveness = getEffectiveness(attacker, defender.types);
+      weightedScore += getShiftedAttackScore(effectiveness, attackScores, attackOffset) * defenseRatings[defender.key];
+    }
+
+    rawTotals[attacker] = weightedScore;
+  }
+
+  return rawTotals;
+}
+
+function calculateDualAttackRankings(attackRatings, defenseRatings, attackScores, attackOffset) {
+  const singleAttackRawTotals = calculateSingleAttackRawTotals(defenseRatings, attackScores, attackOffset);
+
+  const dualModel1 = DUAL_ATTACKERS.map((attacker) => {
+    const [leftType, rightType] = attacker.types;
+    const baseRating = Math.max(attackRatings[leftType], attackRatings[rightType]);
+    const betterSingleRaw = Math.max(singleAttackRawTotals[leftType], singleAttackRawTotals[rightType]);
+    let bestCoverageRaw = 0;
+    let positiveOverlapRaw = 0;
+
+    for (const defender of DEFENDER_TYPINGS) {
+      const leftEffectiveness = getEffectiveness(leftType, defender.types);
+      const rightEffectiveness = getEffectiveness(rightType, defender.types);
+      const leftShiftedScore = getShiftedAttackScore(leftEffectiveness, attackScores, attackOffset);
+      const rightShiftedScore = getShiftedAttackScore(rightEffectiveness, attackScores, attackOffset);
+      const leftUnshiftedScore = getUnshiftedAttackScore(leftEffectiveness, attackScores);
+      const rightUnshiftedScore = getUnshiftedAttackScore(rightEffectiveness, attackScores);
+
+      bestCoverageRaw += Math.max(leftShiftedScore, rightShiftedScore) * defenseRatings[defender.key];
+      positiveOverlapRaw += Math.max(0, Math.min(leftUnshiftedScore, rightUnshiftedScore)) * defenseRatings[defender.key];
+    }
+
+    const coverageRatio = betterSingleRaw > 0
+      ? Math.max(0, (bestCoverageRaw - betterSingleRaw) / betterSingleRaw)
+      : 0;
+    const overlapRatio = bestCoverageRaw > 0
+      ? Math.max(0, positiveOverlapRaw / bestCoverageRaw)
+      : 0;
+
+    return {
+      label: attacker.label,
+      model1Rating: baseRating * (1 + 0.2 * coverageRatio + 0.4 * overlapRatio),
+      model2Rating: baseRating * (1 + 0.5 * overlapRatio)
+    };
+  });
+
+  return {
+    model1: dualModel1
+      .map(({ label, model1Rating }) => [label, model1Rating])
+      .sort(([, left], [, right]) => right - left),
+    model2: dualModel1
+      .map(({ label, model2Rating }) => [label, model2Rating])
+      .sort(([, left], [, right]) => right - left)
+  };
+}
+
 function App() {
   const [attackScores, setAttackScores] = useState(DEFAULT_ATTACK_SCORES);
   const [defenseScores, setDefenseScores] = useState(DEFAULT_DEFENSE_SCORES);
-  const [rankings, setRankings] = useState({ attack: [], defense: [] });
+  const [rankings, setRankings] = useState({ attack: [], defense: [], dualModel1: [], dualModel2: [] });
 
   useEffect(() => {
     let attackRatings = buildInitialRatings(
@@ -95,7 +174,7 @@ function App() {
 
         for (const defender of DEFENDER_TYPINGS) {
           const effectiveness = getEffectiveness(attacker, defender.types);
-          const scoreValue = (attackScores[effectiveness] ?? attackScores[1]) + attackOffset;
+          const scoreValue = getShiftedAttackScore(effectiveness, attackScores, attackOffset);
           weightedScore += scoreValue * defenseRatings[defender.key];
         }
 
@@ -128,11 +207,20 @@ function App() {
       defenseRatings = normalizeRatings(DEFENDER_TYPINGS, nextDefenseRatings, totalDefenseScore);
     }
 
+    const dualAttackRankings = calculateDualAttackRankings(
+      attackRatings,
+      defenseRatings,
+      attackScores,
+      attackOffset
+    );
+
     setRankings({
       attack: Object.entries(attackRatings).sort(([, left], [, right]) => right - left),
       defense: DEFENDER_TYPINGS
         .map((defender) => [defender.label, defenseRatings[defender.key]])
-        .sort(([, left], [, right]) => right - left)
+        .sort(([, left], [, right]) => right - left),
+      dualModel1: dualAttackRankings.model1,
+      dualModel2: dualAttackRankings.model2
     });
   }, [attackScores, defenseScores]);
 
@@ -166,6 +254,12 @@ function App() {
               current ratings, and is renormalized so its own average returns to 100 after every
               iteration.
             </p>
+            <p className="mb-0 mt-3 text-secondary">
+              Dual-type attack estimates are shown below as two heuristics: Model 1 uses
+              <code className="ms-1">base * (1 + 0.2 * coverage + 0.4 * overlap)</code>, while
+              Model 2 uses the stricter
+              <code className="ms-1">base * (1 + 0.5 * overlap)</code>.
+            </p>
           </div>
         </header>
 
@@ -179,6 +273,9 @@ function App() {
                 </p>
                 <p className="small text-secondary mb-2">
                   Defenders: {DEFENDER_TYPINGS.length} single and dual typings
+                </p>
+                <p className="small text-secondary mb-2">
+                  Dual attacking pairs tested: {DUAL_ATTACKERS.length}
                 </p>
                 <p className="small text-secondary mb-0">
                   Effectiveness buckets: {EFFECTIVENESS_ORDER.join(', ')}x
@@ -281,6 +378,72 @@ function App() {
                         <tbody>
                           {rankings.defense.map(([typeLabel, rating], index) => (
                             <tr key={typeLabel}>
+                              <td>{index + 1}</td>
+                              <td>{typeLabel}</td>
+                              <td className="text-end">{rating.toFixed(3)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="row g-4 mt-1">
+              <div className="col-xl-6">
+                <div className="card shadow-sm h-100">
+                  <div className="card-body">
+                    <h2 className="h4 mb-3">Dual Attack Rankings: Model 1</h2>
+                    <p className="small text-secondary">
+                      Anchored at the better single-type rating, then adds a small coverage bonus
+                      and a larger overlap bonus.
+                    </p>
+                    <div className="table-responsive ranking-table">
+                      <table className="table table-sm align-middle mb-0">
+                        <thead>
+                          <tr>
+                            <th>Rank</th>
+                            <th>Typing</th>
+                            <th className="text-end">Rating</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rankings.dualModel1.map(([typeLabel, rating], index) => (
+                            <tr key={`dual-model-1-${typeLabel}`}>
+                              <td>{index + 1}</td>
+                              <td>{typeLabel}</td>
+                              <td className="text-end">{rating.toFixed(3)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="col-xl-6">
+                <div className="card shadow-sm h-100">
+                  <div className="card-body">
+                    <h2 className="h4 mb-3">Dual Attack Rankings: Model 2</h2>
+                    <p className="small text-secondary">
+                      Anchored at the better single-type rating and rewards only overlapping
+                      offensive pressure.
+                    </p>
+                    <div className="table-responsive ranking-table">
+                      <table className="table table-sm align-middle mb-0">
+                        <thead>
+                          <tr>
+                            <th>Rank</th>
+                            <th>Typing</th>
+                            <th className="text-end">Rating</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rankings.dualModel2.map(([typeLabel, rating], index) => (
+                            <tr key={`dual-model-2-${typeLabel}`}>
                               <td>{index + 1}</td>
                               <td>{typeLabel}</td>
                               <td className="text-end">{rating.toFixed(3)}</td>
