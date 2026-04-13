@@ -324,7 +324,7 @@ function App() {
               iteration. This simple methods satisfies some intuitive bounds. See <a href="https://sungwon-kim.com/blog/2024/ranking-pokemon-types/" target="_blank" rel="noreferrer">this blog post</a> for context.
             </p>
             <p className="mb-0 mt-3 text-secondary">
-              Combined attack-typing estimates currently use the 100-baseline additive model:
+              Combined attack-typing estimates currently use the following calculation:
               <code className="ms-1">
                 max(type1, type2) + coverageWeight * 100 * coverage + overlapWeight * 100 * overlap
               </code>
