@@ -1,0 +1,70 @@
+body {
+  margin: 0;
+  font-family: Georgia, 'Times New Roman', serif;
+  background:
+    radial-gradient(circle at top, rgba(255, 215, 145, 0.55), transparent 28%),
+    linear-gradient(180deg, #f8f5ef 0%, #ece7dc 100%);
+  color: #27211d;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+.app-shell {
+  min-height: 100vh;
+}
+
+.hero {
+  border: 1px solid rgba(101, 76, 54, 0.15);
+  background: linear-gradient(135deg, rgba(255, 250, 240, 0.95), rgba(246, 236, 213, 0.95));
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.74rem;
+  color: #8f5b2e;
+}
+
+.lead {
+  max-width: 46rem;
+}
+
+.card {
+  border: 1px solid rgba(101, 76, 54, 0.12);
+  background: rgba(255, 252, 247, 0.88);
+  backdrop-filter: blur(4px);
+}
+
+.score-label {
+  min-width: 4.5rem;
+  justify-content: center;
+}
+
+.ranking-table {
+  max-height: 42rem;
+}
+
+.defense-table {
+  max-height: 50rem;
+}
+
+.table thead th {
+  position: sticky;
+  top: 0;
+  background: #f6efe1;
+  z-index: 1;
+}
+
+.table tbody tr:nth-child(1) td,
+.table tbody tr:nth-child(2) td,
+.table tbody tr:nth-child(3) td {
+  font-weight: 600;
+}
