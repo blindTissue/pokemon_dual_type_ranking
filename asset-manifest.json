@@ -1,0 +1,13 @@
+{
+  "files": {
+    "main.css": "/pokemon_dual_type_ranking/static/css/main.dec163a5.css",
+    "main.js": "/pokemon_dual_type_ranking/static/js/main.bdea3055.js",
+    "index.html": "/pokemon_dual_type_ranking/index.html",
+    "main.dec163a5.css.map": "/pokemon_dual_type_ranking/static/css/main.dec163a5.css.map",
+    "main.bdea3055.js.map": "/pokemon_dual_type_ranking/static/js/main.bdea3055.js.map"
+  },
+  "entrypoints": [
+    "static/css/main.dec163a5.css",
+    "static/js/main.bdea3055.js"
+  ]
+}

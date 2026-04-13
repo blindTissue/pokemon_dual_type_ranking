@@ -1,0 +1,15 @@
+{
+  "short_name": "Poke Dual Rank",
+  "name": "Pokemon Dual-Type Ranking",
+  "icons": [
+    {
+      "src": "pokeball.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#d94a3d",
+  "background_color": "#ffffff"
+}
