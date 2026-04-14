@@ -1,13 +1,13 @@
 {
   "files": {
-    "main.css": "/pokemon_dual_type_ranking/static/css/main.dec163a5.css",
-    "main.js": "/pokemon_dual_type_ranking/static/js/main.bdea3055.js",
+    "main.css": "/pokemon_dual_type_ranking/static/css/main.9e7ed347.css",
+    "main.js": "/pokemon_dual_type_ranking/static/js/main.f041374a.js",
     "index.html": "/pokemon_dual_type_ranking/index.html",
-    "main.dec163a5.css.map": "/pokemon_dual_type_ranking/static/css/main.dec163a5.css.map",
-    "main.bdea3055.js.map": "/pokemon_dual_type_ranking/static/js/main.bdea3055.js.map"
+    "main.9e7ed347.css.map": "/pokemon_dual_type_ranking/static/css/main.9e7ed347.css.map",
+    "main.f041374a.js.map": "/pokemon_dual_type_ranking/static/js/main.f041374a.js.map"
   },
   "entrypoints": [
-    "static/css/main.dec163a5.css",
-    "static/js/main.bdea3055.js"
+    "static/css/main.9e7ed347.css",
+    "static/js/main.f041374a.js"
   ]
 }
