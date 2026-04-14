@@ -186,10 +186,30 @@ function downloadCsv(filename, headers, rows) {
   URL.revokeObjectURL(url);
 }
 
+function buildInputStrings(scoreMap) {
+  return Object.fromEntries(
+    Object.entries(scoreMap).map(([key, value]) => [key, String(value)])
+  );
+}
+
+function parseNumericInput(value) {
+  const trimmedValue = value.trim();
+
+  if (trimmedValue === '' || trimmedValue === '-' || trimmedValue === '.' || trimmedValue === '-.') {
+    return null;
+  }
+
+  const parsedValue = Number.parseFloat(trimmedValue);
+  return Number.isFinite(parsedValue) ? parsedValue : null;
+}
+
 function App() {
   const [attackScores, setAttackScores] = useState(DEFAULT_ATTACK_SCORES);
   const [defenseScores, setDefenseScores] = useState(DEFAULT_DEFENSE_SCORES);
   const [dualAttackWeights, setDualAttackWeights] = useState(DEFAULT_DUAL_ATTACK_WEIGHTS);
+  const [attackScoreInputs, setAttackScoreInputs] = useState(buildInputStrings(DEFAULT_ATTACK_SCORES));
+  const [defenseScoreInputs, setDefenseScoreInputs] = useState(buildInputStrings(DEFAULT_DEFENSE_SCORES));
+  const [dualAttackWeightInputs, setDualAttackWeightInputs] = useState(buildInputStrings(DEFAULT_DUAL_ATTACK_WEIGHTS));
   const [rankings, setRankings] = useState({
     attack: [],
     defense: [],
@@ -267,23 +287,68 @@ function App() {
   }, [attackScores, defenseScores, dualAttackWeights]);
 
   const handleAttackScoreChange = (effectiveness, value) => {
-    setAttackScores((previousScores) => ({
-      ...previousScores,
-      [effectiveness]: Number.parseFloat(value) || 0
+    setAttackScoreInputs((previousInputs) => ({
+      ...previousInputs,
+      [effectiveness]: value
     }));
+
+    const parsedValue = parseNumericInput(value);
+    if (parsedValue !== null) {
+      setAttackScores((previousScores) => ({
+        ...previousScores,
+        [effectiveness]: parsedValue
+      }));
+    }
   };
 
   const handleDefenseScoreChange = (effectiveness, value) => {
-    setDefenseScores((previousScores) => ({
-      ...previousScores,
-      [effectiveness]: Number.parseFloat(value) || 0
+    setDefenseScoreInputs((previousInputs) => ({
+      ...previousInputs,
+      [effectiveness]: value
     }));
+
+    const parsedValue = parseNumericInput(value);
+    if (parsedValue !== null) {
+      setDefenseScores((previousScores) => ({
+        ...previousScores,
+        [effectiveness]: parsedValue
+      }));
+    }
   };
 
   const handleDualAttackWeightChange = (weightName, value) => {
-    setDualAttackWeights((previousWeights) => ({
-      ...previousWeights,
-      [weightName]: Number.parseFloat(value) || 0
+    setDualAttackWeightInputs((previousInputs) => ({
+      ...previousInputs,
+      [weightName]: value
+    }));
+
+    const parsedValue = parseNumericInput(value);
+    if (parsedValue !== null) {
+      setDualAttackWeights((previousWeights) => ({
+        ...previousWeights,
+        [weightName]: parsedValue
+      }));
+    }
+  };
+
+  const resetAttackScoreInput = (effectiveness) => {
+    setAttackScoreInputs((previousInputs) => ({
+      ...previousInputs,
+      [effectiveness]: String(attackScores[effectiveness])
+    }));
+  };
+
+  const resetDefenseScoreInput = (effectiveness) => {
+    setDefenseScoreInputs((previousInputs) => ({
+      ...previousInputs,
+      [effectiveness]: String(defenseScores[effectiveness])
+    }));
+  };
+
+  const resetDualAttackWeightInput = (weightName) => {
+    setDualAttackWeightInputs((previousInputs) => ({
+      ...previousInputs,
+      [weightName]: String(dualAttackWeights[weightName])
     }));
   };
 
@@ -357,9 +422,11 @@ function App() {
                     <span className="input-group-text score-label">{effectiveness}x</span>
                     <input
                       type="number"
+                      step="0.01"
                       className="form-control"
-                      value={attackScores[effectiveness]}
+                      value={attackScoreInputs[effectiveness]}
                       onChange={(event) => handleAttackScoreChange(effectiveness, event.target.value)}
+                      onBlur={() => resetAttackScoreInput(effectiveness)}
                     />
                   </div>
                 ))}
@@ -378,9 +445,11 @@ function App() {
                     <span className="input-group-text score-label">{effectiveness}x</span>
                     <input
                       type="number"
+                      step="0.01"
                       className="form-control"
-                      value={defenseScores[effectiveness]}
+                      value={defenseScoreInputs[effectiveness]}
                       onChange={(event) => handleDefenseScoreChange(effectiveness, event.target.value)}
+                      onBlur={() => resetDefenseScoreInput(effectiveness)}
                     />
                   </div>
                 ))}
@@ -407,8 +476,9 @@ function App() {
                     type="number"
                     step="0.01"
                     className="form-control"
-                    value={dualAttackWeights.coverage}
+                    value={dualAttackWeightInputs.coverage}
                     onChange={(event) => handleDualAttackWeightChange('coverage', event.target.value)}
+                    onBlur={() => resetDualAttackWeightInput('coverage')}
                   />
                 </div>
                 <div className="input-group mb-0">
@@ -417,8 +487,9 @@ function App() {
                     type="number"
                     step="0.01"
                     className="form-control"
-                    value={dualAttackWeights.overlap}
+                    value={dualAttackWeightInputs.overlap}
                     onChange={(event) => handleDualAttackWeightChange('overlap', event.target.value)}
+                    onBlur={() => resetDualAttackWeightInput('overlap')}
                   />
                 </div>
                 <details className="formula-details mt-3">
