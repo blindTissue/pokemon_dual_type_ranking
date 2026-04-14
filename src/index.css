@@ -96,6 +96,11 @@ code {
   background: #f6efe1;
 }
 
+.table thead th:last-child,
+.table tbody td:last-child {
+  padding-right: 1.1rem;
+}
+
 .table tbody tr:nth-child(1) td,
 .table tbody tr:nth-child(2) td,
 .table tbody tr:nth-child(3) td {

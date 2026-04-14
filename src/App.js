@@ -30,7 +30,6 @@ const EFFECTIVENESS_ORDER = [0, 0.25, 0.5, 1, 2, 4];
 const DEFAULT_ATTACK_SCORES = { 0: -3, 0.25: -2, 0.5: -1, 1: 0, 2: 1, 4: 2 };
 const DEFAULT_DEFENSE_SCORES = { 0: 3, 0.25: 2, 0.5: 1, 1: 0, 2: -1, 4: -2 };
 const DEFAULT_DUAL_ATTACK_WEIGHTS = { coverage: 0.3, overlap: 0.2 };
-const RATING_BASELINE = 100;
 const ITERATION_COUNT = 100;
 
 const DEFENDER_TYPINGS = [
@@ -146,8 +145,8 @@ function calculateDualAttackRankings(attackRatings, defenseRatings, attackScores
         + dualAttackWeights.overlap * overlapRatio
       ),
       additiveRating: baseRating
-        + dualAttackWeights.coverage * RATING_BASELINE * coverageRatio
-        + dualAttackWeights.overlap * RATING_BASELINE * overlapRatio
+        + dualAttackWeights.coverage * baseRating * coverageRatio
+        + dualAttackWeights.overlap * baseRating * overlapRatio
     };
   });
 
@@ -326,7 +325,7 @@ function App() {
             <p className="mb-0 mt-3 text-secondary">
               Combined attack-typing estimates currently use the following calculation:
               <code className="ms-1">
-                max(type1, type2) + coverageWeight * 100 * coverage + overlapWeight * 100 * overlap
+                max(type1, type2) + coverageWeight * max(type1, type2) * coverage + overlapWeight * max(type1, type2) * overlap
               </code>
               . Single typings keep their original attack ratings.
             </p>
@@ -398,7 +397,7 @@ function App() {
                 <p className="small text-secondary mb-3">
                   Dual attack score:
                   <code className="ms-1">
-                    base + coverageWeight * 100 * coverage + overlapWeight * 100 * overlap.
+                    base + coverageWeight * base * coverage + overlapWeight * base * overlap.
                   </code>
                   modify the weights as you seem fit.
                 </p>
@@ -468,7 +467,7 @@ function App() {
                     <p className="mb-0">
                       Additive-bonus score:
                       <code className="ms-1">
-                        max(type1, type2) + coverageWeight * 100 * coverage + overlapWeight * 100 * overlap
+                        base + coverageWeight * base * coverage + overlapWeight * base * overlap
                       </code>
                     </p>
                   </div>
@@ -564,8 +563,8 @@ function App() {
                     </div>
                     <p className="small text-secondary">
                       Includes all 18 single attacking types and 153 dual attacking typings.
-                      Dual typings use the 100-baseline additive heuristic with
-                      <code className="ms-1">base = max(type1, type2)</code>.
+                      Dual typings use the base-scaled additive heuristic
+                      <code className="ms-1">max(type1, type2) + coverageWeight * max(type1, type2) * coverage + overlapWeight * max(type1, type2) * overlap</code>.
                     </p>
                     <div className="table-responsive ranking-table defense-table">
                       <table className="table table-sm align-middle mb-0">
