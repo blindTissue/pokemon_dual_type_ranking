@@ -76,9 +76,9 @@ This is the main custom part of the app.
 The app keeps two dual-attack formulas in code:
 
 - a multiplicative version
-- an additive version based on the fixed baseline `100`
+- an additive version based on the selected `base` rating
 
-The current UI uses the additive `100`-baseline version.
+The current UI uses the additive base-scaled version.
 
 ### Why Not Just Add Type A And Type B
 
@@ -156,8 +156,8 @@ The current UI uses:
 ```text
 dualAttack(A, B) =
   base
-  + coverageWeight * 100 * coverageRatio
-  + overlapWeight * 100 * overlapRatio
+  + coverageWeight * base * coverageRatio
+  + overlapWeight * base * overlapRatio
 ```
 
 with:
@@ -168,19 +168,20 @@ base = max(singleAttack(A), singleAttack(B))
 
 Default weights:
 
-- `coverageWeight = 0.2`
-- `overlapWeight = 0.4`
+- `coverageWeight = 0.3`
+- `overlapWeight = 0.2`
 
-### Why Use `100` Here
+### Why Use `base` Here
 
-The system baseline is `100`, so using `100` in the additive bonus makes the bonus scale uniform across typings.
+The `coverageRatio` term is already defined relative to the better single-type raw total. Scaling the additive bonus by `base` keeps the interpretation aligned with that anchor.
 
-This avoids one of the main issues with the multiplicative version:
+That means:
 
-- if the bonus is multiplied by `base`, already-strong singles get larger synergy rewards automatically
-- with the `100`-baseline additive version, synergy is measured on a common absolute scale
+- `coverageWeight = 0` means use the better single-type rating unchanged
+- `coverageWeight = 1` means grant the full relative coverage bonus against that chosen base
+- the same logic applies to `overlapWeight`
 
-That makes the dual bonus easier to interpret and usually a bit less “rich get richer.”
+This makes the weights easier to interpret, because they now read as "how much of the relative bonus should be credited to the dual typing?"
 
 ## Benefits Of The Current Heuristic
 
